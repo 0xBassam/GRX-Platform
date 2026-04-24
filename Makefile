@@ -1,4 +1,7 @@
-.PHONY: install install-web install-ingest dev build lint migrate ingest ingest-ecc ingest-pdpl seed-demo smoke clean
+.PHONY: bootstrap install install-web install-ingest dev build lint migrate ingest ingest-ecc ingest-pdpl seed-demo smoke clean
+
+bootstrap:
+	bash scripts/bootstrap.sh
 
 SHELL := /bin/bash
 
