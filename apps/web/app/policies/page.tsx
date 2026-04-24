@@ -1,10 +1,33 @@
-export default function PoliciesPage() {
+import { PoliciesClient } from "@/components/PoliciesClient";
+
+type SearchParams = { [key: string]: string | string[] | undefined };
+
+export default function PoliciesPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const controls = csv(searchParams.controls);
+  const lang = (searchParams.lang === "ar" ? "ar" : "en") as "en" | "ar";
+  const kind = (["policy", "procedure", "guideline"].includes(
+    String(searchParams.kind ?? ""),
+  )
+    ? (searchParams.kind as "policy" | "procedure" | "guideline")
+    : "policy") as "policy" | "procedure" | "guideline";
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Policies</h1>
-      <p className="text-slate-600">
-        Policy / Procedure / Guideline generator lands in Phase 4.
-      </p>
-    </div>
+    <PoliciesClient
+      initialControls={controls}
+      initialLang={lang}
+      initialKind={kind}
+    />
   );
+}
+
+function csv(v: string | string[] | undefined): string[] {
+  if (!v) return [];
+  const s = Array.isArray(v) ? v.join(",") : v;
+  return s
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
 }
