@@ -1,19 +1,38 @@
 // PDF builder: renders the canonical Markdown to HTML and uses Puppeteer
-// to print it to PDF. Same styling axis as the DOCX renderer so EN and AR
-// documents look consistent across both formats.
+// to print it to PDF. Runs both locally (full puppeteer or system Chrome)
+// and in Vercel's serverless functions (@sparticuz/chromium).
 
 import type { GeneratedDoc } from "./generate";
 
-export async function buildPdf(doc: GeneratedDoc): Promise<Buffer> {
-  // Dynamic import so the Next.js bundler doesn't try to pull puppeteer
-  // into the client bundle. `serverComponentsExternalPackages` already
-  // isolates it but the dynamic import also helps local dev.
-  const { default: puppeteer } = await import("puppeteer");
-  const html = renderHtml(doc);
+type Browser = { newPage: () => Promise<any>; close: () => Promise<void> };
 
-  const browser = await puppeteer.launch({
+async function launchBrowser(): Promise<Browser> {
+  const onVercel = Boolean(process.env.VERCEL);
+  if (onVercel) {
+    const [{ default: chromium }, { default: puppeteer }] = await Promise.all([
+      import("@sparticuz/chromium"),
+      import("puppeteer-core"),
+    ]);
+    return (await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    })) as unknown as Browser;
+  }
+  // Local dev: puppeteer-core + whatever Chrome is on the machine.
+  // Point PUPPETEER_EXECUTABLE_PATH at your Chrome binary if autodiscovery fails.
+  const { default: puppeteer } = await import("puppeteer-core");
+  return (await puppeteer.launch({
+    executablePath:
+      process.env.PUPPETEER_EXECUTABLE_PATH ??
+      "/usr/bin/google-chrome-stable",
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  })) as unknown as Browser;
+}
+
+export async function buildPdf(doc: GeneratedDoc): Promise<Buffer> {
+  const html = renderHtml(doc);
+  const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "domcontentloaded" });

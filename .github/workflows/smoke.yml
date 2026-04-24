@@ -1,0 +1,40 @@
+# Manual workflow that runs the smoke-test harness against a deployed URL.
+# Trigger: Actions tab -> "Smoke test deployed URL" -> Run workflow.
+
+name: Smoke test deployed URL
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Deployed base URL (e.g. https://grx-platform.vercel.app)"
+        required: true
+        type: string
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Install web dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Run smoke tests
+        env:
+          GRX_BASE_URL: ${{ inputs.base_url }}
+        run: pnpm tsx scripts/smoke.ts

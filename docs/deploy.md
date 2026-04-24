@@ -1,58 +1,78 @@
-# Deploy
+# Deployment notes
 
-End-to-end setup needs external accounts you control. Once credentials
-exist, `make bootstrap` handles everything locally; deployment is then a
-one-click Vercel import.
+Detailed reference for the README runbook. Covers gotchas and
+environment-variable semantics, not repetitive step lists.
 
-## Accounts you need to create (one-time, ~15 minutes)
+## Environment variables
 
-1. **Supabase** — https://supabase.com
-   - Free tier is enough for this MVP.
-   - Create a new project; pick the nearest region (e.g. `eu-central-1`).
-   - Project Settings → Database → enable the `vector` extension.
-   - Collect:
-     - `SUPABASE_URL` (Project Settings → API → Project URL)
-     - `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API → service_role secret)
-     - `SUPABASE_DB_URL` (Project Settings → Database → Connection string →
-       URI, with your DB password filled in). Only used by `psql` for migrations.
-2. **Anthropic** — https://console.anthropic.com
-   - Billing required. Create an API key.
-   - `ANTHROPIC_API_KEY`.
-3. **OpenAI** — https://platform.openai.com
-   - Billing required. Only used for `text-embedding-3-large`.
-   - `OPENAI_API_KEY`.
-4. **Vercel** — https://vercel.com (optional — for hosting the web app)
-   - Connect GitHub → Import `0xBassam/GRX-Platform` → select branch
-     `claude/grx-compliance-platform-6VrB6`.
-   - Root Directory: `apps/web`.
-   - Environment variables: copy the five from above plus `GRX_DEMO_MODE=1`.
-   - Build settings auto-detect Next.js; no overrides needed.
+| Var | Required | Where used | Notes |
+| --- | --- | --- | --- |
+| `ANTHROPIC_API_KEY` | yes | Vercel runtime | chat + policy generation |
+| `OPENAI_API_KEY` | yes | Vercel runtime + ingestion | embeddings |
+| `SUPABASE_URL` | yes | Vercel runtime + ingestion | project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | yes | Vercel runtime + ingestion | **service_role**, not anon |
+| `SUPABASE_DB_URL` | only for migrations | `psql` / GitHub Action | `postgres://` URI |
+| `GRX_DEMO_MODE` | no | Vercel runtime | set to `1` to enable demo chips + Demo Company |
+| `GRX_CHAT_MODEL` | no | Vercel runtime | default `claude-sonnet-4-6` |
+| `GRX_POLICY_MODEL` | no | Vercel runtime | default `claude-opus-4-7` |
+| `GRX_EMBEDDING_MODEL` | no | ingestion | default `text-embedding-3-large` |
 
-## Why this repo doesn't auto-deploy
+## Why this repo can't fully self-deploy
 
 - Anthropic and OpenAI keys cost real money and are tied to a billing
-  identity. I can't create them on your behalf.
+  identity — the account owner must create them.
 - Supabase projects belong to an owner and are metered against their
-  account. Same rule.
-- Hosting (Vercel / Render / Fly) requires either an SSO login or a
-  personal access token. Those stay with you.
+  account.
+- Vercel deploys require either GitHub-linked SSO or a personal access
+  token — both are user-scoped.
 
-If you want me to drive the deploy after you've created those accounts,
-the fastest route is:
+The repo therefore stops at **one-click import** and **one-click
+ingestion workflow**. You click two buttons and paste five secrets.
 
-- Create the Supabase project + keys (steps 1–3 above).
-- Put them in `.env` at the repo root, commit `.env.local` locally
-  (or paste them in chat).
-- Run `make bootstrap` once to push schema + ingest both PDFs + seed
-  Demo Company. This is the only step that needs the Supabase DB URL.
-- Push to GitHub and import into Vercel with the same five variables.
+## PDF export on Vercel
 
-After that `pnpm tsx scripts/smoke.ts` against the deployed URL is the
-release gate.
+`lib/docgen/pdf.ts` detects `process.env.VERCEL` and switches between:
 
-## Local-only rehearsal (no deploy)
+- **Local:** `puppeteer-core` + whatever Chrome is on the machine. Set
+  `PUPPETEER_EXECUTABLE_PATH` if autodiscovery fails.
+- **Vercel:** `puppeteer-core` + `@sparticuz/chromium`. Chromium is
+  loaded from the layer at cold start; first invocation is slow (~5s)
+  but subsequent calls are fast. `maxDuration` on the export routes is
+  set to 60s in `apps/web/vercel.json`.
 
-If you want to demo on your laptop first:
+If you ever see `Protocol error (Target.setAutoAttach)` on Vercel, it's
+almost always a `@sparticuz/chromium` version mismatch with
+`puppeteer-core`. Pin both in lockstep.
+
+## Ingestion on GitHub Actions
+
+The `Ingest knowledge base` workflow runs PyMuPDF + OpenAI embedding +
+Supabase insert in CI. Runtime is ~2 minutes. Total cost on the first
+run is under US$1 at current OpenAI pricing.
+
+`Apply migrations` input applies `0001_init.sql` and
+`0002_seed_frameworks.sql` with `psql` before ingestion — convenient on
+the first run, unnecessary on subsequent runs.
+
+## Re-ingesting
+
+The loader is idempotent per framework: it upserts controls by
+(framework_id, code) and *replaces* every chunk for that framework in
+one transaction. Re-running the workflow is safe and recommended after:
+
+- a parser tweak in `ingestion/segment.py`,
+- a new PDF version,
+- changes to `ingestion/chunk.py` that alter chunk boundaries.
+
+## Rotating secrets
+
+- Anthropic/OpenAI: rotate in each provider's console, then update the
+  Vercel env var. Vercel redeploys the current commit automatically when
+  an env var changes.
+- Supabase: if you rotate the service-role key, update Vercel + every
+  GitHub repository secret (`SUPABASE_SERVICE_ROLE_KEY`).
+
+## Local rehearsal
 
 ```bash
 cp .env.example .env
@@ -63,11 +83,9 @@ GRX_DEMO_MODE=1 make dev   # http://localhost:3000
 cd apps/web && pnpm tsx scripts/smoke.ts
 ```
 
-`scripts/smoke.ts` exits non-zero on any failure-criterion violation, so
-it's a hard gate you can run before a live demo.
+## Costs once live
 
-## What Vercel charges
-
-Free tier covers this MVP's traffic comfortably. The AI cost lives on
-Anthropic + OpenAI; ballpark under $200/month for heavy internal use (see
-the main README).
+- Supabase free tier: fine for a single-tenant internal MVP.
+- Vercel free (Hobby) tier: fine for demos; bumps to Pro if you want
+  `maxDuration > 60s` or higher concurrency.
+- Anthropic + OpenAI: ~US$200/month upper bound for heavy internal use.

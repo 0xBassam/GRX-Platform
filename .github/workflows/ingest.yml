@@ -1,0 +1,71 @@
+# Manual workflow to ingest the committed ECC + PDPL PDFs into Supabase.
+# Trigger: Actions tab -> "Ingest knowledge base" -> Run workflow.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   OPENAI_API_KEY
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   SUPABASE_DB_URL          (postgres:// URI; only needed if 'apply_migrations' is true)
+
+name: Ingest knowledge base
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_migrations:
+        description: "Apply Supabase migrations before ingestion?"
+        type: boolean
+        default: true
+      framework:
+        description: "Which framework(s) to ingest"
+        type: choice
+        options: [both, ECC, PDPL]
+        default: both
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install psql
+        if: ${{ inputs.apply_migrations }}
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ingestion/requirements.txt
+
+      - name: Install ingestion dependencies
+        run: pip install -r ingestion/requirements.txt
+
+      - name: Apply migrations
+        if: ${{ inputs.apply_migrations }}
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0001_init.sql
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0002_seed_frameworks.sql
+
+      - name: Ingest ECC
+        if: ${{ inputs.framework == 'both' || inputs.framework == 'ECC' }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python ingestion/run.py ingest --framework ECC --pdf "Guide Ecc.pdf"
+          python ingestion/run.py verify --framework ECC
+
+      - name: Ingest PDPL
+        if: ${{ inputs.framework == 'both' || inputs.framework == 'PDPL' }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python ingestion/run.py ingest --framework PDPL --pdf "Saudi regulation.pdf"
+          python ingestion/run.py verify --framework PDPL
