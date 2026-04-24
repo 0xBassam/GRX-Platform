@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { detectLang, dirOf, UI, type Lang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { CitationBadge } from "@/components/CitationBadge";
+import { DEMO_QUERIES } from "@/lib/demo/queries";
 
 type Message = {
   role: "user" | "assistant";
@@ -11,21 +12,6 @@ type Message = {
   citations?: string[];
   actions?: { generate_policy: string[] };
   rejected?: boolean;
-};
-
-const DEMO_QUERIES: Record<Lang, string[]> = {
-  en: [
-    "What does ECC 1-1 require?",
-    "Explain cybersecurity strategy controls",
-    "What evidence is required for access control?",
-    "Summarize PDPL obligations for data subjects",
-  ],
-  ar: [
-    "ماذا يتطلب الضابط 1-1؟",
-    "اشرح ضوابط استراتيجية الأمن السيبراني",
-    "ما الأدلة المطلوبة لضوابط التحكم في الوصول؟",
-    "لخص التزامات نظام حماية البيانات تجاه أصحاب البيانات",
-  ],
 };
 
 export function ChatClient({ demo }: { demo: boolean }) {
