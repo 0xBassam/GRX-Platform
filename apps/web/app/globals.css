@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 248 250 252;
+  --foreground: 15 23 42;
+  --muted: 241 245 249;
+  --border: 226 232 240;
+  --brand: 53 88 229;
+}
+
+html, body { height: 100%; }
+
+body {
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-feature-settings: "cv11", "ss01";
+}
+
+[dir="rtl"] {
+  font-family: "Noto Naskh Arabic", "Noto Sans Arabic", serif;
+}
+
+[dir="ltr"] {
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.prose-grx {
+  @apply leading-relaxed;
+}
+
+.prose-grx h2 {
+  @apply text-lg font-semibold mt-4 mb-2;
+}
+
+.prose-grx h3 {
+  @apply text-base font-semibold mt-3 mb-1;
+}
+
+.prose-grx ul {
+  @apply list-disc ps-5 space-y-1;
+}
+
+.prose-grx ol {
+  @apply list-decimal ps-5 space-y-1;
+}
+
+.citation {
+  @apply inline-flex items-center gap-1 rounded bg-brand-50 text-brand-700
+         px-1.5 py-0.5 text-xs font-medium border border-brand-700/20
+         cursor-pointer hover:bg-brand-500/10;
+}
