@@ -1,0 +1,76 @@
+# Builds the static demo (apps/demo) and deploys it to GitHub Pages.
+#
+# Setup:
+#   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
+#
+# After the first successful run the demo is live at
+#   https://<owner>.github.io/<repo>/
+# (default basePath = "/GRX-Platform"). Set NEXT_PUBLIC_BASE_PATH as a
+# repo variable if your repo name differs.
+
+name: Deploy static demo to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - claude/grx-compliance-platform-6VrB6
+    paths:
+      - "apps/demo/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/demo
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: apps/demo/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build static export
+        env:
+          # Defaults to /GRX-Platform — the repo name. Override via repo
+          # variable NEXT_PUBLIC_BASE_PATH if you rename or use a custom
+          # domain (set it to the empty string for a CNAME).
+          NEXT_PUBLIC_BASE_PATH: ${{ vars.NEXT_PUBLIC_BASE_PATH || '/GRX-Platform' }}
+        run: pnpm build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/demo/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
