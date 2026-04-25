@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { detectLang, dirOf, UI, type Lang } from "@/lib/i18n";
+import { detectLang, dirOf, UI, type Lang, type UILabels } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { CitationBadge } from "@/components/CitationBadge";
 import { mockChat, chunkText, type MockAnswer } from "@/lib/mocks/chat";
@@ -135,7 +135,7 @@ export function ChatClient() {
   );
 }
 
-function Bubble({ m, labels }: { m: Message; labels: typeof UI.en }) {
+function Bubble({ m, labels }: { m: Message; labels: UILabels }) {
   const lang = detectLang(m.content);
   const dir = dirOf(lang);
   if (m.role === "user") {

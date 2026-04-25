@@ -15,7 +15,27 @@ export const ABSTAIN = {
   ar: "لم أتمكن من العثور على معلومات كافية في قاعدة المعرفة التي تم تحميلها.",
 } as const;
 
-export const UI = {
+export type UILabels = {
+  appName: string;
+  chat: string;
+  policies: string;
+  insights: string;
+  ask: string;
+  send: string;
+  generatePolicy: string;
+  fixMissing: string;
+  suggestNext: string;
+  downloadDocx: string;
+  downloadPdf: string;
+  downloadMd: string;
+  covered: string;
+  partial: string;
+  missing: string;
+  notApplicable: string;
+  demoMode: string;
+};
+
+export const UI: Record<Lang, UILabels> = {
   en: {
     appName: "GRX",
     chat: "Chat",
